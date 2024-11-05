@@ -1,5 +1,5 @@
 
-# NikobusConnect
+# NikobusConnect - DRAFT - ALPHA - NOT READY FOR USAGE
 
 NikobusConnect is a Python library that provides an asynchronous interface for connecting to Nikobus home automation systems via IP or Serial connections. It allows you to control and monitor devices connected to a Nikobus system.
 
