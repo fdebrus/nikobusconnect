@@ -1,31 +1,42 @@
 # nikobusconnect/const.py
 
-# Connect
-BAUD_RATE = 9600
-COMMANDS_HANDSHAKE = [
-    "++++",
-    "ATH0",
-    "ATZ",
-    "$10110000B8CF9D",
-    "#L0",
-    "#E0",
-    "#L0",
-    "#E1"
-]
-EXPECTED_HANDSHAKE_RESPONSE = "$0511"
-HANDSHAKE_TIMEOUT = 60
+from dataclasses import dataclass, field
+from typing import List
 
-# Message parser
-BUTTON_COMMAND_PREFIX = "#S"
-IGNORE_ANSWER = "$00"
-FEEDBACK_REFRESH_COMMAND = "#R"
-FEEDBACK_MODULE_ANSWER = "$1F"
-COMMAND_PROCESSED = "#A"
-CONTROLLER_ADDRESS = "$05"
-MANUAL_REFRESH_COMMANDS = ["$1F", "$0F"]
+@dataclass(frozen=True)
+class ConnectionConfig:
+    baud_rate: int = 9600
+    handshake_commands: List[str] = field(default_factory=lambda: [
+        "++++",
+        "ATH0",
+        "ATZ",
+        "$10110000B8CF9D",
+        "#L0",
+        "#E0",
+        "#L0",
+        "#E1"
+    ])
+    expected_handshake_response: str = "$0511"
+    handshake_timeout: int = 60
 
-# Commands
-COMMAND_EXECUTION_DELAY = 0.5
-COMMAND_ACK_WAIT_TIMEOUT = 2.0
-COMMAND_ANSWER_WAIT_TIMEOUT = 5.0
-MAX_ATTEMPTS = 3
+@dataclass(frozen=True)
+class MessageParserConfig:
+    button_command_prefix: str = "#S"
+    ignore_answer: str = "$00"
+    feedback_refresh_command: str = "#R"
+    feedback_module_answer: str = "$1F"
+    command_processed: str = "#A"
+    controller_address: str = "$05"
+    manual_refresh_commands: List[str] = field(default_factory=lambda: ["$1F", "$0F"])
+
+@dataclass(frozen=True)
+class CommandExecutionConfig:
+    execution_delay: float = 0.5
+    ack_wait_timeout: float = 2.0
+    answer_wait_timeout: float = 5.0
+    max_attempts: int = 3
+
+# Instances of config classes
+CONNECTION_CONFIG = ConnectionConfig()
+MESSAGE_PARSER_CONFIG = MessageParserConfig()
+COMMAND_EXECUTION_CONFIG = CommandExecutionConfig()
