@@ -7,6 +7,8 @@ import ipaddress
 import re
 from serial.serialutil import SerialException
 
+from .const import BAUD_RATE, COMMANDS_HANDSHAKE, EXPECTED_HANDSHAKE_RESPONSE, HANDSHAKE_TIMEOUT
+
 _LOGGER = logging.getLogger(__name__)
 
 class NikobusConnect:
