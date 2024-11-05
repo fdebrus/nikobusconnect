@@ -1,13 +1,5 @@
 import logging
-from .constants import (
-    BUTTON_COMMAND_PREFIX,
-    IGNORE_ANSWER,
-    FEEDBACK_REFRESH_COMMAND,
-    FEEDBACK_MODULE_ANSWER,
-    COMMAND_PROCESSED,
-    CONTROLLER_ADDRESS,
-    MANUAL_REFRESH_COMMANDS,
-)
+from .const import MESSAGE_PARSER_CONFIG
 from enum import Enum
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,24 +15,16 @@ class MessageType(Enum):
     UNKNOWN = "unknown"
 
 def parse_message(message: str) -> dict:
-    """
-    Parse a Nikobus message and return a dictionary with its components.
-
-    Args:
-        message (str): The raw message string from the Nikobus system.
-
-    Returns:
-        dict: A dictionary containing the parsed message details.
-    """
+    """Parse a Nikobus message and return a dictionary with its components."""
     parsed_data = {"type": MessageType.UNKNOWN.value, "message": message}
     
     message_type_map = {
-        BUTTON_COMMAND_PREFIX: (MessageType.BUTTON_PRESS, {"data": message[2:8]}),
-        IGNORE_ANSWER: (MessageType.IGNORE, {}),
-        COMMAND_PROCESSED: (MessageType.COMMAND_ACKNOWLEDGED, {}),
-        CONTROLLER_ADDRESS: (MessageType.CONTROLLER_ADDRESS, {"address": message[3:7]}),
-        FEEDBACK_REFRESH_COMMAND: (MessageType.FEEDBACK_REFRESH, {"message": message}),
-        FEEDBACK_MODULE_ANSWER: (MessageType.FEEDBACK_MODULE_ANSWER, {"message": message}),
+        MESSAGE_PARSER_CONFIG.button_command_prefix: (MessageType.BUTTON_PRESS, {"data": message[2:8]}),
+        MESSAGE_PARSER_CONFIG.ignore_answer: (MessageType.IGNORE, {}),
+        MESSAGE_PARSER_CONFIG.command_processed: (MessageType.COMMAND_ACKNOWLEDGED, {}),
+        MESSAGE_PARSER_CONFIG.controller_address: (MessageType.CONTROLLER_ADDRESS, {"address": message[3:7]}),
+        MESSAGE_PARSER_CONFIG.feedback_refresh_command: (MessageType.FEEDBACK_REFRESH, {"message": message}),
+        MESSAGE_PARSER_CONFIG.feedback_module_answer: (MessageType.FEEDBACK_MODULE_ANSWER, {"message": message}),
     }
 
     # Check if message matches a specific prefix
@@ -51,7 +35,7 @@ def parse_message(message: str) -> dict:
             return parsed_data
 
     # Check for manual refresh commands
-    if any(refresh in message for refresh in MANUAL_REFRESH_COMMANDS):
+    if any(refresh in message for refresh in MESSAGE_PARSER_CONFIG.manual_refresh_commands):
         parsed_data["type"] = MessageType.MANUAL_REFRESH.value
 
     return parsed_data
