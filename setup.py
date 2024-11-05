@@ -19,6 +19,10 @@ setup(
         'pyserial-asyncio>=0.5',
     ],
     classifiers=[
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Developers',
+        'Topic :: Software Development :: Libraries',
+        'Topic :: Home Automation',
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
