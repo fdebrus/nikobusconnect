@@ -1,12 +1,7 @@
 import asyncio
 import logging
 from .protocol import make_pc_link_command, calculate_group_number
-from .constants import (
-    COMMAND_EXECUTION_DELAY,
-    COMMAND_ACK_WAIT_TIMEOUT,
-    COMMAND_ANSWER_WAIT_TIMEOUT,
-    MAX_ATTEMPTS,
-)
+from .const import COMMAND_EXECUTION_CONFIG
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,7 +54,7 @@ class NikobusCommandHandler:
         while self._running:
             command = await self._command_queue.get()
             await self._execute_command(command)
-            await asyncio.sleep(COMMAND_EXECUTION_DELAY)
+            await asyncio.sleep(COMMAND_EXECUTION_CONFIG.execution_delay)
 
     async def _send_command(self, command: str):
         """Send a command to the Nikobus system."""
