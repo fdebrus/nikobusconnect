@@ -1,5 +1,3 @@
-# nikobusconnect/connection.py
-
 import logging
 import asyncio
 import serial_asyncio
@@ -7,7 +5,7 @@ import ipaddress
 import re
 from serial.serialutil import SerialException
 
-from .const import BAUD_RATE, COMMANDS_HANDSHAKE, EXPECTED_HANDSHAKE_RESPONSE, HANDSHAKE_TIMEOUT
+from .const import CONNECTION_CONFIG
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +46,7 @@ class NikobusConnect:
         """Establish a serial connection to the Nikobus system."""
         try:
             self._nikobus_reader, self._nikobus_writer = await serial_asyncio.open_serial_connection(
-                url=self._connection_string, baudrate=BAUD_RATE
+                url=self._connection_string, baudrate=CONNECTION_CONFIG.baud_rate
             )
             _LOGGER.info(f"Connected to serial port {self._connection_string}")
         except (OSError, SerialException) as err:
@@ -66,7 +64,7 @@ class NikobusConnect:
 
     async def _perform_handshake(self) -> bool:
         """Perform a handshake with the Nikobus system to verify the connection."""
-        return all(await self.send(command) for command in COMMANDS_HANDSHAKE)
+        return all(await self.send(command) for command in CONNECTION_CONFIG.handshake_commands)
 
     async def read(self):
         """Read data from the Nikobus system."""
