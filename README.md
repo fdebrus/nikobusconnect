@@ -1,5 +1,5 @@
 
-# NikobusConnect - DRAFT - ALPHA - NOT READY FOR USAGE
+# NikobusConnect
 
 NikobusConnect is a Python library that provides an asynchronous interface for connecting to Nikobus home automation systems via IP or Serial connections. It allows you to control and monitor devices connected to a Nikobus system.
 
@@ -14,6 +14,7 @@ NikobusConnect is a Python library that provides an asynchronous interface for c
   - [Receiving Messages](#receiving-messages)
   - [Command Handling](#command-handling)
   - [Protocol Functions](#protocol-functions)
+  - [Setting Output State](#setting-output-state)
   - [Message Parsing](#message-parsing)
 - [API Reference](#api-reference)
   - [NikobusConnect](#nikobusconnect-class)
@@ -57,13 +58,11 @@ import asyncio
 from nikobusconnect import NikobusConnect
 
 async def main():
-    # Replace with your Nikobus connection string (e.g., '192.168.1.100:8000' or '/dev/ttyUSB0')
     connection_string = '192.168.1.100:8000'
     nikobus = NikobusConnect(connection_string)
 
     if await nikobus.connect():
         print("Connected to Nikobus system")
-        # Your code here
         await nikobus.close()
     else:
         print("Failed to connect to Nikobus system")
@@ -75,18 +74,21 @@ asyncio.run(main())
 
 Use the `send` method to send commands to the Nikobus system.
 
+Example command:
+
 ```python
-await nikobus.send('#SOME_COMMAND')
+command = "$1E12A3B400FF110000FFAA3D7BEE"
+await nikobus.send(command)
 ```
 
 ### Receiving Messages
 
-Use the `read` method to read data from the Nikobus system.
+Use the `read` method to read data from the Nikobus system. Example received message:
 
 ```python
 data = await nikobus.read()
 message = data.decode('utf-8').strip()
-print(f"Received message: {message}")
+print(f"Received message: {message}")  # e.g., "$0515$1FA9C20A003F"
 ```
 
 ### Command Handling
@@ -96,14 +98,11 @@ You can use the `NikobusCommandHandler` class to manage command queues and handl
 ```python
 from nikobusconnect import NikobusCommandHandler
 
-# Initialize the command handler with the connection
 command_handler = NikobusCommandHandler(nikobus)
 await command_handler.start()
 
-# Queue a command
-await command_handler.queue_command('#SOME_COMMAND')
+await command_handler.queue_command('$1E12A3B400FF110000FFAA3D7BEE')
 
-# Stop the command handler when done
 await command_handler.stop()
 ```
 
@@ -114,26 +113,53 @@ Use the protocol functions to construct commands and calculate checksums.
 ```python
 from nikobusconnect import make_pc_link_command
 
-# Construct a PC link command
-func = 0xE2  # Function code
-addr = '0012'  # Module address
-args = bytes([0x01])  # Arguments
+func = 0x15
+addr = 'C9A5'
+args = 0x01
 command = make_pc_link_command(func, addr, args)
 print(f"Command: {command}")
+```
+
+### Setting Output State
+
+The `set_output_state` function allows setting the state for different Nikobus modules.
+
+- **Parameters:**
+  - `address`: The module address as defined in Nikobus software, in a format such as "C9A5".
+  - `channel`: The channel to control, ranging from 1 to 6 (for shutter modules) and up to 12 for other modules.
+  - `value`: The state or intensity level.
+
+- **Supported values for different modules:**
+  - **Switch Module:** `0x00` (Off) or `0x01` (On).
+  - **Dimmer Module:** Accepts any value between `0x00` (Off) and `0xFF` (Full On).
+  - **Shutter Module:** Supports:
+    - `0x00` to stop the cover,
+    - `0x01` to open, and
+    - `0x02` to close.
+
+Example usage:
+
+```python
+await command_handler.set_output_state(address='C9A5', channel=1, value=0xFF)  # Full brightness for dimmer
+await command_handler.set_output_state(address='C9A6', channel=2, value=0x00)  # Turn off switch
+await command_handler.set_output_state(address='C9A7', channel=3, value=0x02)  # Close shutter
 ```
 
 ### Message Parsing
 
 Use the `parse_message` function to parse messages from the Nikobus system.
 
+Example received message:
+
 ```python
 from nikobusconnect import parse_message
 
-message = '#S123456'
+message = '$0515$0EFF6C0E0060'
 parsed = parse_message(message)
 print(parsed)
-# Output: {'type': 'button_press', 'data': '123456'}
 ```
+
+## API Reference
 
 ## API Reference
 
@@ -236,32 +262,24 @@ import asyncio
 from nikobusconnect import NikobusConnect, NikobusCommandHandler, parse_message
 
 async def main():
-    connection_string = '192.168.1.100:8000'  # Replace with your connection string
+    connection_string = '192.168.1.100:8000'
     nikobus = NikobusConnect(connection_string)
     if await nikobus.connect():
         print("Connected to Nikobus system")
 
-        # Initialize the command handler
         command_handler = NikobusCommandHandler(nikobus)
         await command_handler.start()
 
-        # Set the output state of a module
-        await command_handler.set_output_state(address='0012', channel=1, value=255)
-
-        # Get the output state of a module
-        state = await command_handler.get_output_state(address='0012', group=1)
+        await command_handler.set_output_state(address='C9A5', channel=1, value=255)
+        state = await command_handler.get_output_state(address='C9A5', group=1)
         print(f"Module state: {state}")
 
-        # Read and parse messages
         data = await nikobus.read()
         message = data.decode('utf-8').strip()
         parsed_message = parse_message(message)
         print(f"Parsed message: {parsed_message}")
 
-        # Stop the command handler
         await command_handler.stop()
-
-        # Close the connection
         await nikobus.close()
     else:
         print("Failed to connect to Nikobus system")
@@ -271,15 +289,7 @@ asyncio.run(main())
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository on GitHub.
-2. Create a new branch: `git checkout -b feature/your-feature-name`.
-3. Commit your changes: `git commit -am 'Add your feature'`.
-4. Push to the branch: `git push origin feature/your-feature-name`.
-5. Submit a pull request.
-
-For major changes, please open an issue first to discuss what you would like to change.
+Contributions are welcome! 
 
 ## License
 
@@ -287,8 +297,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Note:** Replace placeholder values like IP addresses, module addresses, and commands with actual values relevant to your Nikobus system.
+**Note:** Replace placeholder values with actual values relevant to your Nikobus system.
 
----
-
-For any questions or support, please open an issue on the [GitHub repository](https://github.com/fdebrus/nikobusconnect).
+For questions or support, please open an issue on the [GitHub repository](https://github.com/fdebrus/nikobusconnect).
