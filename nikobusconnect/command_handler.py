@@ -92,11 +92,11 @@ class NikobusCommandHandler:
         return values
 
     def _prepare_signals(self, command: str, address: str) -> tuple:
-        """Prepare acknowledgment and answer signals for a command."""
+        """Prepare acknowledgment and answer signals for a command, as bytes."""
         command_part = command[3:5]
-        ack_signal = f'$05{command_part}'
+        ack_signal = f'$05{command_part}'.encode()
         answer_prefix = '$18' if command_part == '11' else '$1C'
-        answer_signal = f'{answer_prefix}{address[2:]}{address[:2]}'
+        answer_signal = f'{answer_prefix}{address[2:]}{address[:2]}'.encode()
         return ack_signal, answer_signal
 
     async def _wait_for_signals(self, command: str, ack_signal: str, answer_signal: str) -> str | None:
