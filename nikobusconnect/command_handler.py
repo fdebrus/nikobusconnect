@@ -31,11 +31,18 @@ class NikobusCommandHandler:
                 _LOGGER.info("Command processing task was cancelled")
             self._command_task = None
 
-    async def get_output_state(self, address: str, group: int) -> str:
+    async def get_output_state(self, address: str, group: int) -> str | None:
         """Get the output state of a module."""
+        _LOGGER.debug(f'Getting output state - Address: {address}, Group: {group}') 
         command_code = 0x12 if group == 1 else 0x17
         command = make_pc_link_command(command_code, address)
-        return await self._send_and_wait_for_response(command, address)
+        try:
+            state = await self.send_command_get_answer(command, address)
+            _LOGGER.debug(f'Received state for address {address} and group {group}: {state}')
+            return state
+        except Exception as e:
+            _LOGGER.error(f"Error retrieving output state for address {address}, group {group}: {e}")
+            return None
 
     async def set_output_state(self, address: str, channel: int, value: int):
         """Set the output state of a module."""
@@ -64,7 +71,7 @@ class NikobusCommandHandler:
         except Exception as e:
             _LOGGER.error(f"Error sending command: {e}")
 
-    async def _send_and_wait_for_response(self, command: str, address: str) -> str | None:
+    async def send_command_get_answer(self, command: str, address: str) -> str | None:
         """Send a command and wait for an acknowledgment and answer."""
         ack_signal, answer_signal = self._prepare_signals(command, address)
         return await self._wait_for_signals(command, ack_signal, answer_signal)
@@ -93,6 +100,33 @@ class NikobusCommandHandler:
         return ack_signal, answer_signal
 
     async def _wait_for_signals(self, command: str, ack_signal: str, answer_signal: str) -> str | None:
-        """Wait for acknowledgment and answer signals (placeholder)."""
-        # Implement waiting logic based on timeouts here if needed
-        return None
+        """Wait for acknowledgment and answer signals with retry logic."""
+        ack_received = False
+        answer_received = None
+        for attempt in range(COMMAND_EXECUTION_CONFIG.max_attempts):
+            await self._send_command(command)
+            _LOGGER.debug(f'Attempt {attempt + 1} of {COMMAND_EXECUTION_CONFIG.max_attempts} for command: {command}')
+            ack_deadline = asyncio.get_event_loop().time() + COMMAND_EXECUTION_CONFIG.ack_timeout
+            while asyncio.get_event_loop().time() < ack_deadline:
+                try:
+                    message = await asyncio.wait_for(self.nikobus_connection.receive(), timeout=COMMAND_EXECUTION_CONFIG.answer_timeout)
+                    _LOGGER.debug(f"Message received: {message}")
+                    if ack_signal in message:
+                        _LOGGER.debug("Acknowledgment received")
+                        ack_received = True
+                    if answer_signal in message:
+                        _LOGGER.debug("Answer received")
+                        answer_received = message  # Store the response message
+                        break
+                    # If both signals are received, exit early
+                    if ack_received and answer_received:
+                        return answer_received
+                except asyncio.TimeoutError:
+                    _LOGGER.debug("Timeout waiting for acknowledgment or answer signal")
+            _LOGGER.debug(f"Retrying for attempt {attempt + 1} due to missing signals.")
+        if not ack_received:
+            _LOGGER.error(f"Failed to receive acknowledgment for command: {command}")
+        if not answer_received:
+            _LOGGER.error(f"Failed to receive answer for command: {command}")
+        return answer_received
+
