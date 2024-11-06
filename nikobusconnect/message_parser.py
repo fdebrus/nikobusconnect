@@ -15,34 +15,28 @@ class MessageType(Enum):
     UNKNOWN = "unknown"
 
 def parse_message(message):
-    """Parse a message and determine its type, with debug logging."""
-    # Log the incoming message at the debug level
+    """Parse a message and determine its type."""
     _LOGGER.debug(f"Parsing received message: {message}")
 
-    # Use individual elements of lists instead of the lists directly
-    feedback_refresh_commands = MESSAGE_PARSER_CONFIG.feedback_refresh_command
-    command_processed_responses = MESSAGE_PARSER_CONFIG.command_processed
-
-    # Define a dictionary with single string values (no lists as keys)
-    message_type_map = {
-        MessageType.BUTTON_PRESS: MESSAGE_PARSER_CONFIG.button_command_prefix,
-        MessageType.FEEDBACK_MODULE_ANSWER: MESSAGE_PARSER_CONFIG.feedback_module_answer,
-        MessageType.CONTROLLER_ADDRESS: MESSAGE_PARSER_CONFIG.controller_address,
-    }
-
-    # Check if message matches any known type
-    if message in feedback_refresh_commands:
+    # Check for message types based on prefix or exact match
+    if message.startswith(MESSAGE_PARSER_CONFIG.button_command_prefix):
+        _LOGGER.debug("Message type identified as BUTTON_PRESS")
+        return MessageType.BUTTON_PRESS
+    elif any(message.startswith(cmd) for cmd in MESSAGE_PARSER_CONFIG.feedback_refresh_command):
         _LOGGER.debug("Message type identified as FEEDBACK_REFRESH")
         return MessageType.FEEDBACK_REFRESH
-    elif message in command_processed_responses:
+    elif any(message.startswith(cmd) for cmd in MESSAGE_PARSER_CONFIG.command_processed):
         _LOGGER.debug("Message type identified as COMMAND_ACKNOWLEDGED")
         return MessageType.COMMAND_ACKNOWLEDGED
-    elif message in message_type_map.values():
-        # Match specific message types directly
-        for msg_type, value in message_type_map.items():
-            if message == value:
-                _LOGGER.debug(f"Message type identified as {msg_type.name}")
-                return msg_type
+    elif message.startswith(MESSAGE_PARSER_CONFIG.controller_address):
+        _LOGGER.debug("Message type identified as CONTROLLER_ADDRESS")
+        return MessageType.CONTROLLER_ADDRESS
+    elif message.startswith(MESSAGE_PARSER_CONFIG.feedback_module_answer):
+        _LOGGER.debug("Message type identified as FEEDBACK_MODULE_ANSWER")
+        return MessageType.FEEDBACK_MODULE_ANSWER
+    elif any(message.startswith(cmd) for cmd in MESSAGE_PARSER_CONFIG.manual_refresh_commands):
+        _LOGGER.debug("Message type identified as MANUAL_REFRESH")
+        return MessageType.MANUAL_REFRESH
     else:
         _LOGGER.debug("Message type identified as UNKNOWN")
         return MessageType.UNKNOWN
