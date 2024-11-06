@@ -21,17 +21,16 @@ class ConnectionConfig:
 
 @dataclass(frozen=True)
 class MessageParserConfig:
-    button_command_prefix: str = "#S"
-    ignore_answer: str = "$00"
-    feedback_refresh_command: str = "#R"
-    feedback_module_answer: str = "$1F"
-    command_processed: str = "#A"
-    controller_address: str = "$05"
-    manual_refresh_commands: List[str] = field(default_factory=lambda: ["$1F", "$0F"])
+    button_command_prefix: str = "#N"
+    ignore_answer: str = "$0E"
+    feedback_refresh_command: str = List[str] = field(default_factory=lambda: ["$1012", "$1017"])
+    feedback_module_answer: str = "$1C"
+    command_processed: str = List[str] = field(default_factory=lambda: ["$0515", "$0516"])
+    controller_address: str = "$18"
+    manual_refresh_commands: List[str] = field(default_factory=lambda: ["$0512", "$0517"])
 
 @dataclass(frozen=True)
 class CommandExecutionConfig:
-    execution_delay: float = 0.5
     ack_wait_timeout: float = 2.0
     answer_wait_timeout: float = 5.0
     max_attempts: int = 3
