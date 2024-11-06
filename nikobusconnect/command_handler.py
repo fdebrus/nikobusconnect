@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from .protocol import make_pc_link_command, calculate_group_number
 from .const import COMMAND_EXECUTION_CONFIG
@@ -40,7 +41,7 @@ class NikobusCommandHandler:
         """Send a command to the Nikobus system."""
         try:
             await self.nikobus_connection.send(command)
-            _LOGGER.debug("Command sent successfully")
+            _LOGGER.debug(f"Command sent successfully: {command}")
         except Exception as e:
             _LOGGER.error(f"Error sending command: {e}")
 
