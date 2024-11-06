@@ -106,10 +106,10 @@ class NikobusCommandHandler:
         for attempt in range(COMMAND_EXECUTION_CONFIG.max_attempts):
             await self._send_command(command)
             _LOGGER.debug(f'Attempt {attempt + 1} of {COMMAND_EXECUTION_CONFIG.max_attempts} for command: {command}')
-            ack_deadline = asyncio.get_event_loop().time() + COMMAND_EXECUTION_CONFIG.ack_timeout
+            ack_deadline = asyncio.get_event_loop().time() + COMMAND_EXECUTION_CONFIG.ack_wait_timeout
             while asyncio.get_event_loop().time() < ack_deadline:
                 try:
-                    message = await asyncio.wait_for(self.nikobus_connection.receive(), timeout=COMMAND_EXECUTION_CONFIG.answer_timeout)
+                    message = await asyncio.wait_for(self.nikobus_connection.receive(), timeout=COMMAND_EXECUTION_CONFIG.answer_wait_timeout)
                     _LOGGER.debug(f"Message received: {message}")
                     if ack_signal in message:
                         _LOGGER.debug("Acknowledgment received")
