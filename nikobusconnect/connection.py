@@ -64,7 +64,7 @@ class NikobusConnect:
 
     async def _perform_handshake(self) -> bool:
         """Perform a handshake with the Nikobus system to verify the connection."""
-        return all(await self.send(command) for command in CONNECTION_CONFIG.handshake_commands)
+        return all([await self.send(command) for command in CONNECTION_CONFIG.handshake_commands])
 
     async def read(self):
         """Read data from the Nikobus system."""
