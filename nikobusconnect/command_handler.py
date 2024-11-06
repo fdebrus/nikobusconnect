@@ -70,19 +70,22 @@ class NikobusCommandHandler:
             ack_deadline = asyncio.get_event_loop().time() + COMMAND_EXECUTION_CONFIG.ack_wait_timeout
             while asyncio.get_event_loop().time() < ack_deadline:
                 try:
-                    message = await asyncio.wait_for(self.nikobus_connection.read(), timeout=COMMAND_EXECUTION_CONFIG.answer_wait_timeout)
+                    message = await asyncio.wait_for(
+                        self.nikobus_connection.read(),
+                        timeout=COMMAND_EXECUTION_CONFIG.answer_wait_timeout
+                    )
                     _LOGGER.debug(f"Message received: {message}")
                     if ack_signal in message:
-                        _LOGGER.debug("Acknowledgment received")
+                        _LOGGER.debug("Acknowledgment signal received")
                         ack_received = True
                     if answer_signal in message:
-                        _LOGGER.debug("Answer received")
+                        _LOGGER.debug("Answer signal received")
                         answer_received = message
-                        break
                     if ack_received and answer_received:
                         return answer_received.decode()
                 except asyncio.TimeoutError:
                     _LOGGER.debug("Timeout waiting for acknowledgment or answer signal")
+                    break 
             _LOGGER.debug(f"Retrying for attempt {attempt + 1} due to missing signals.")
         if not ack_received:
             _LOGGER.error(f"Failed to receive acknowledgment for command: {command}")
