@@ -12,7 +12,6 @@ NikobusConnect is a Python library that provides an asynchronous interface for c
   - [Connecting to Nikobus](#connecting-to-nikobus)
   - [Sending Commands](#sending-commands)
   - [Receiving Messages](#receiving-messages)
-  - [Command Handling](#command-handling)
   - [Protocol Functions](#protocol-functions)
   - [Setting Output State](#setting-output-state)
   - [Message Parsing](#message-parsing)
@@ -91,35 +90,6 @@ message = data.decode('utf-8').strip()
 print(f"Received message: {message}")  # e.g., "$0515$1FA9C20A003F"
 ```
 
-### Command Handling
-
-You can use the `NikobusCommandHandler` class to manage command queues and handle responses.
-
-```python
-from nikobusconnect import NikobusCommandHandler
-
-command_handler = NikobusCommandHandler(nikobus)
-await command_handler.start()
-
-await command_handler.queue_command('$1E12A3B400FF110000FFAA3D7BEE')
-
-await command_handler.stop()
-```
-
-### Protocol Functions
-
-Use the protocol functions to construct commands and calculate checksums.
-
-```python
-from nikobusconnect import make_pc_link_command
-
-func = 0x15
-addr = 'C9A5'
-args = 0x01
-command = make_pc_link_command(func, addr, args)
-print(f"Command: {command}")
-```
-
 ### Setting Output State
 
 The `set_output_state` function allows setting the state for different Nikobus modules.
@@ -161,8 +131,6 @@ print(parsed)
 
 ## API Reference
 
-## API Reference
-
 ### NikobusConnect Class
 
 Class for managing the connection to the Nikobus system.
@@ -195,18 +163,6 @@ Class for handling commands to the Nikobus system.
 
   Initialize the command handler.
 
-- **`async start()`**
-
-  Start the command processing loop.
-
-- **`async stop()`**
-
-  Stop the command processing loop.
-
-- **`async queue_command(command: str)`**
-
-  Queue a command for processing.
-
 - **`async get_output_state(address: str, group: int) -> Optional[str]`**
 
   Get the output state of a module.
@@ -218,26 +174,6 @@ Class for handling commands to the Nikobus system.
 ### Protocol Functions
 
 Functions for constructing and parsing Nikobus protocol commands.
-
-- **`int_to_hex(value: int, digits: int) -> str`**
-
-  Convert an integer to a hexadecimal string with specified number of digits.
-
-- **`calc_crc1(data: str) -> int`**
-
-  Calculate CRC-16/ANSI X3.28 (CRC-16-IBM) for the given data.
-
-- **`calc_crc2(data: str) -> int`**
-
-  Calculate CRC-8 (CRC-8-ATM) for the given data.
-
-- **`append_crc1(data: str) -> str`**
-
-  Append CRC-16 to the given data.
-
-- **`append_crc2(data: str) -> str`**
-
-  Append CRC-8 to the given data.
 
 - **`make_pc_link_command(func: int, addr: str, args: bytes = None) -> str`**
 
@@ -262,15 +198,16 @@ import asyncio
 from nikobusconnect import NikobusConnect, NikobusCommandHandler, parse_message
 
 async def main():
-    connection_string = '192.168.1.100:8000'
+    connection_string = '/dev/ttyUSB0'
     nikobus = NikobusConnect(connection_string)
+
     if await nikobus.connect():
         print("Connected to Nikobus system")
 
         command_handler = NikobusCommandHandler(nikobus)
-        await command_handler.start()
 
-        await command_handler.set_output_state(address='C9A5', channel=1, value=255)
+        await command_handler.set_output_state(address='C9A5', channel=1, value=0xFF)
+
         state = await command_handler.get_output_state(address='C9A5', group=1)
         print(f"Module state: {state}")
 
@@ -279,7 +216,6 @@ async def main():
         parsed_message = parse_message(message)
         print(f"Parsed message: {parsed_message}")
 
-        await command_handler.stop()
         await nikobus.close()
     else:
         print("Failed to connect to Nikobus system")
