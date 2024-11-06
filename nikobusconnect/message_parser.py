@@ -14,28 +14,27 @@ class MessageType(Enum):
     MANUAL_REFRESH = "manual_refresh"
     UNKNOWN = "unknown"
 
-def parse_message(message: str) -> dict:
-    """Parse a Nikobus message and return a dictionary with its components."""
-    parsed_data = {"type": MessageType.UNKNOWN.value, "message": message}
-    
+def parse_message(message):
+    # Use individual elements of lists instead of the lists directly
+    feedback_refresh_commands = MESSAGE_PARSER_CONFIG.feedback_refresh_command
+    command_processed_responses = MESSAGE_PARSER_CONFIG.command_processed
+
+    # Define a dictionary with single string values (no lists as keys)
     message_type_map = {
-        MESSAGE_PARSER_CONFIG.button_command_prefix: (MessageType.BUTTON_PRESS, {"data": message[2:8]}),
-        MESSAGE_PARSER_CONFIG.ignore_answer: (MessageType.IGNORE, {}),
-        MESSAGE_PARSER_CONFIG.command_processed: (MessageType.COMMAND_ACKNOWLEDGED, {}),
-        MESSAGE_PARSER_CONFIG.controller_address: (MessageType.CONTROLLER_ADDRESS, {"address": message[3:7]}),
-        MESSAGE_PARSER_CONFIG.feedback_refresh_command: (MessageType.FEEDBACK_REFRESH, {"message": message}),
-        MESSAGE_PARSER_CONFIG.feedback_module_answer: (MessageType.FEEDBACK_MODULE_ANSWER, {"message": message}),
+        MessageType.BUTTON_PRESS: MESSAGE_PARSER_CONFIG.button_command_prefix,
+        MessageType.FEEDBACK_MODULE_ANSWER: MESSAGE_PARSER_CONFIG.feedback_module_answer,
+        MessageType.CONTROLLER_ADDRESS: MESSAGE_PARSER_CONFIG.controller_address,
     }
 
-    # Check if message matches a specific prefix
-    for prefix, (msg_type, extra_data) in message_type_map.items():
-        if message.startswith(prefix):
-            parsed_data["type"] = msg_type.value
-            parsed_data.update(extra_data)
-            return parsed_data
-
-    # Check for manual refresh commands
-    if any(refresh in message for refresh in MESSAGE_PARSER_CONFIG.manual_refresh_commands):
-        parsed_data["type"] = MessageType.MANUAL_REFRESH.value
-
-    return parsed_data
+    # Check if message matches any known type
+    if message in feedback_refresh_commands:
+        return MessageType.FEEDBACK_REFRESH
+    elif message in command_processed_responses:
+        return MessageType.COMMAND_ACKNOWLEDGED
+    elif message in message_type_map.values():
+        # Match specific message types directly
+        for msg_type, value in message_type_map.items():
+            if message == value:
+                return msg_type
+    else:
+        return MessageType.UNKNOWN
