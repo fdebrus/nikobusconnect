@@ -23,9 +23,9 @@ class ConnectionConfig:
 class MessageParserConfig:
     button_command_prefix: str = "#N"
     ignore_answer: str = "$0E"
-    feedback_refresh_command: str = List[str] = field(default_factory=lambda: ["$1012", "$1017"])
+    feedback_refresh_command: List[str] = field(default_factory=lambda: ["$1012", "$1017"])
     feedback_module_answer: str = "$1C"
-    command_processed: str = List[str] = field(default_factory=lambda: ["$0515", "$0516"])
+    command_processed: List[str] = field(default_factory=lambda: ["$0515", "$0516"])
     controller_address: str = "$18"
     manual_refresh_commands: List[str] = field(default_factory=lambda: ["$0512", "$0517"])
 
