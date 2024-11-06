@@ -92,14 +92,14 @@ class NikobusCommandHandler:
         return values
 
     def _prepare_signals(self, command: str, address: str) -> tuple:
-        """Prepare acknowledgment and answer signals for a command, as bytes."""
+        """Prepare acknowledgment and answer signals for a command."""
         command_part = command[3:5]
         ack_signal = f'$05{command_part}'.encode()
         answer_prefix = '$18' if command_part == '11' else '$1C'
         answer_signal = f'{answer_prefix}{address[2:]}{address[:2]}'.encode()
         return ack_signal, answer_signal
 
-    async def _wait_for_signals(self, command: str, ack_signal: str, answer_signal: str) -> str | None:
+    async def _wait_for_signals(self, command: str, ack_signal: bytes, answer_signal: bytes) -> str | None:
         """Wait for acknowledgment and answer signals with retry logic."""
         ack_received = False
         answer_received = None
@@ -111,22 +111,26 @@ class NikobusCommandHandler:
                 try:
                     message = await asyncio.wait_for(self.nikobus_connection.read(), timeout=COMMAND_EXECUTION_CONFIG.answer_wait_timeout)
                     _LOGGER.debug(f"Message received: {message}")
+
                     if ack_signal in message:
                         _LOGGER.debug("Acknowledgment received")
                         ack_received = True
                     if answer_signal in message:
                         _LOGGER.debug("Answer received")
-                        answer_received = message  # Store the response message
+                        answer_received = message
                         break
-                    # If both signals are received, exit early
+
                     if ack_received and answer_received:
-                        return answer_received
+                        return answer_received.decode()
                 except asyncio.TimeoutError:
                     _LOGGER.debug("Timeout waiting for acknowledgment or answer signal")
+
             _LOGGER.debug(f"Retrying for attempt {attempt + 1} due to missing signals.")
+
         if not ack_received:
             _LOGGER.error(f"Failed to receive acknowledgment for command: {command}")
         if not answer_received:
             _LOGGER.error(f"Failed to receive answer for command: {command}")
-        return answer_received
+
+        return answer_received.decode() if answer_received else None
 
