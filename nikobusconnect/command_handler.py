@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from .protocol import make_pc_link_command, calculate_group_number
 from .const import COMMAND_EXECUTION_CONFIG
@@ -10,26 +9,6 @@ class NikobusCommandHandler:
 
     def __init__(self, nikobus_connection):
         self.nikobus_connection = nikobus_connection
-        self._command_queue = asyncio.Queue()
-        self._command_task = None
-        self._running = False
-
-    async def start(self):
-        """Start command processing loop."""
-        if not self._running:
-            self._running = True
-            self._command_task = asyncio.create_task(self._process_commands())
-
-    async def stop(self):
-        """Stop command processing loop."""
-        self._running = False
-        if self._command_task:
-            self._command_task.cancel()
-            try:
-                await self._command_task
-            except asyncio.CancelledError:
-                _LOGGER.info("Command processing task was cancelled")
-            self._command_task = None
 
     async def get_output_state(self, address: str, group: int) -> str | None:
         """Get the output state of a module."""
@@ -50,19 +29,13 @@ class NikobusCommandHandler:
         command_code = 0x15 if group == 1 else 0x16
         values = self._prepare_command_values(channel, value)
         command = make_pc_link_command(command_code, address, values)
-        await self._queue_command(command)
-
-    async def _queue_command(self, command: str):
-        """Add a command to the processing queue."""
-        await self._command_queue.put(command)
-
-    async def _process_commands(self):
-        """Process commands from the queue with a delay."""
-        while self._running:
-            command = await self._command_queue.get()
-            await self._execute_command(command)
-            await asyncio.sleep(COMMAND_EXECUTION_CONFIG.execution_delay)
-
+        await self._send_command(command)
+        
+    async def send_command_get_answer(self, command: str, address: str) -> str | None:
+        """Send a command and wait for an acknowledgment and answer."""
+        ack_signal, answer_signal = self._prepare_signals(command, address)
+        return await self._wait_for_signals(command, ack_signal, answer_signal)
+        
     async def _send_command(self, command: str):
         """Send a command to the Nikobus system."""
         try:
@@ -70,19 +43,6 @@ class NikobusCommandHandler:
             _LOGGER.debug("Command sent successfully")
         except Exception as e:
             _LOGGER.error(f"Error sending command: {e}")
-
-    async def send_command_get_answer(self, command: str, address: str) -> str | None:
-        """Send a command and wait for an acknowledgment and answer."""
-        ack_signal, answer_signal = self._prepare_signals(command, address)
-        return await self._wait_for_signals(command, ack_signal, answer_signal)
-
-    async def _execute_command(self, command: str):
-        """Execute a command from the queue."""
-        try:
-            await self._send_command(command)
-            _LOGGER.debug(f"Command executed: {command}")
-        except Exception as e:
-            _LOGGER.error(f"Failed to execute command: {e}")
 
     def _prepare_command_values(self, channel: int, value: int) -> bytes:
         """Prepare values for the command based on channel and desired state."""
@@ -111,7 +71,6 @@ class NikobusCommandHandler:
                 try:
                     message = await asyncio.wait_for(self.nikobus_connection.read(), timeout=COMMAND_EXECUTION_CONFIG.answer_wait_timeout)
                     _LOGGER.debug(f"Message received: {message}")
-
                     if ack_signal in message:
                         _LOGGER.debug("Acknowledgment received")
                         ack_received = True
@@ -119,18 +78,14 @@ class NikobusCommandHandler:
                         _LOGGER.debug("Answer received")
                         answer_received = message
                         break
-
                     if ack_received and answer_received:
                         return answer_received.decode()
                 except asyncio.TimeoutError:
                     _LOGGER.debug("Timeout waiting for acknowledgment or answer signal")
-
             _LOGGER.debug(f"Retrying for attempt {attempt + 1} due to missing signals.")
-
         if not ack_received:
             _LOGGER.error(f"Failed to receive acknowledgment for command: {command}")
         if not answer_received:
             _LOGGER.error(f"Failed to receive answer for command: {command}")
-
         return answer_received.decode() if answer_received else None
 
