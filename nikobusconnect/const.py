@@ -1,20 +1,14 @@
 # nikobusconnect/const.py
-
 from dataclasses import dataclass, field
 from typing import List
 
 @dataclass(frozen=True)
 class ConnectionConfig:
     baud_rate: int = 9600
+    # Mandatory commands to "wake up" the PC-Link interface
     handshake_commands: List[str] = field(default_factory=lambda: [
-        "++++",
-        "ATH0",
-        "ATZ",
-        "$10110000B8CF9D",
-        "#L0",
-        "#E0",
-        "#L0",
-        "#E1"
+        "++++", "ATH0", "ATZ", "$10110000B8CF9D", 
+        "#L0", "#E0", "#L0", "#E1"
     ])
     expected_handshake_response: str = "$0511"
     handshake_timeout: int = 60
@@ -35,7 +29,7 @@ class CommandExecutionConfig:
     answer_wait_timeout: float = 5.0
     max_attempts: int = 3
 
-# Instances of config classes
+# Global Instances for the library to import
 CONNECTION_CONFIG = ConnectionConfig()
 MESSAGE_PARSER_CONFIG = MessageParserConfig()
 COMMAND_EXECUTION_CONFIG = CommandExecutionConfig()
