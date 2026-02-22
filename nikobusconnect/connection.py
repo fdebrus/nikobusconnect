@@ -1,97 +1,113 @@
-import logging
-import asyncio
-import serial_asyncio
-import ipaddress
-import re
-from serial.serialutil import SerialException
+"""
+Nikobus Connection Handler.
+"""
 
-from .const import CONNECTION_CONFIG
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import Optional
+
+import serial_asyncio
 
 _LOGGER = logging.getLogger(__name__)
 
+class NikobusConnectionError(Exception):
+    """Base exception for Nikobus connection issues."""
+
 class NikobusConnect:
-    """Manages connection to a Nikobus system via IP or Serial."""
+    """Manages the asynchronous connection (Serial or TCP) to the Nikobus PC-Link."""
 
-    def __init__(self, connection_string: str):
-        """Initialize the connection handler with the given connection string."""
+    def __init__(self, connection_string: str) -> None:
+        """Initialize the connection handler."""
         self._connection_string = connection_string
-        self._connection_type = self._determine_connection_type()
-        self._nikobus_reader = None
-        self._nikobus_writer = None
+        self._reader: Optional[asyncio.StreamReader] = None
+        self._writer: Optional[asyncio.StreamWriter] = None
+        self._lock = asyncio.Lock()
+        self._is_connected = False
 
-    async def connect(self) -> bool:
-        """Connect to the Nikobus system using the connection string."""
-        connect_func = self._connect_ip if self._connection_type == "IP" else self._connect_serial
+    @property
+    def is_connected(self) -> bool:
+        """Return True if the connection is active."""
+        return self._is_connected
+
+    async def connect(self) -> None:
+        """Establish the connection (TCP or Serial)."""
+        _LOGGER.debug("Attempting to connect to Nikobus: %s", self._connection_string)
+        
         try:
-            await connect_func()
-            if await self._perform_handshake():
-                _LOGGER.info("Nikobus handshake successful")
-                return True
-            return False
+            # Logic to distinguish between TCP (host:port) and Serial (/dev/tty...)
+            if ":" in self._connection_string and not self._connection_string.startswith("/"):
+                # TCP/IP Connection
+                host, port = self._connection_string.split(":", 1)
+                self._reader, self._writer = await asyncio.open_connection(host, int(port))
+            else:
+                # Serial Connection
+                self._reader, self._writer = await serial_asyncio.open_serial_connection(
+                    url=self._connection_string,
+                    baudrate=9600,
+                    bytesize=8,
+                    parity='N',
+                    stopbits=1,
+                    xonxoff=False,
+                    rtscts=False,
+                    dsrdtr=False
+                )
+            
+            self._is_connected = True
+            _LOGGER.info("Connected to Nikobus on %s", self._connection_string)
+            
         except (OSError, asyncio.TimeoutError) as err:
-            _LOGGER.error(f"Connection error with {self._connection_string}: {err}")
-            return False
+            self._is_connected = False
+            _LOGGER.error("Failed to connect to %s: %s", self._connection_string, err)
+            raise NikobusConnectionError(f"Connection failed: {err}")
 
-    async def _connect_ip(self):
-        """Establish an IP connection to the Nikobus system."""
-        host, port_str = self._connection_string.split(":")
-        port = int(port_str)
+    async def disconnect(self) -> None:
+        """Close the connection and cleanup resources."""
+        if self._writer:
+            try:
+                self._writer.close()
+                await self._writer.wait_closed()
+            except Exception as err:
+                _LOGGER.debug("Error during close: %s", err)
+        
+        self._reader = None
+        self._writer = None
+        self._is_connected = False
+        _LOGGER.info("Nikobus connection closed.")
+
+    async def send(self, command: str) -> None:
+        """Send a command string to the bus with thread-safe locking."""
+        if not self._is_connected or not self._writer:
+            raise NikobusConnectionError("Cannot send: Not connected.")
+
+        async with self._lock:
+            try:
+                # Nikobus expects CR as delimiter.
+                payload = command.strip() + "\r"
+                data = payload.encode("ascii")
+                
+                self._writer.write(data)
+                await self._writer.drain()
+            except (OSError, asyncio.TimeoutError) as err:
+                _LOGGER.error("Write failed: %s", err)
+                await self.disconnect()
+                raise NikobusConnectionError(f"Write error: {err}")
+
+    async def read(self) -> bytes:
+        """Read a single frame (CR-terminated) from the bus."""
+        if not self._is_connected or not self._reader:
+            raise NikobusConnectionError("Cannot read: Not connected.")
+
         try:
-            self._nikobus_reader, self._nikobus_writer = await asyncio.open_connection(host, port)
-            _LOGGER.info(f"Connected to bridge {host}:{port}")
-        except (OSError, ValueError) as err:
-            _LOGGER.error(f"Failed to connect to bridge {self._connection_string} - {err}")
-
-    async def _connect_serial(self):
-        """Establish a serial connection to the Nikobus system."""
-        try:
-            self._nikobus_reader, self._nikobus_writer = await serial_asyncio.open_serial_connection(
-                url=self._connection_string, baudrate=CONNECTION_CONFIG.baud_rate
-            )
-            _LOGGER.info(f"Connected to serial port {self._connection_string}")
-        except (OSError, SerialException) as err:
-            _LOGGER.error(f"Failed to connect to serial port {self._connection_string} - {err}")
-
-    def _determine_connection_type(self) -> str:
-        """Determine the connection type based on the connection string."""
-        if re.match(r'^(/dev/tty(USB|S)\d+|/dev/serial/by-id/.+)$', self._connection_string):
-            return "Serial"
-        try:
-            ipaddress.ip_address(self._connection_string.split(':')[0])
-            return "IP"
-        except ValueError:
-            return "Unknown"
-
-    async def _perform_handshake(self) -> bool:
-        """Perform a handshake with the Nikobus system to verify the connection."""
-        return all([await self.send(command) for command in CONNECTION_CONFIG.handshake_commands])
-
-    async def read(self):
-        """Read data from the Nikobus system."""
-        if not self._nikobus_reader:
-            _LOGGER.error("Reader is not available for reading data.")
-            return None
-        return await self._nikobus_reader.readuntil(b'\r')
-
-    async def send(self, command: str) -> bool:
-        """Send a command to the Nikobus system."""
-        if not self._nikobus_writer:
-            _LOGGER.error("Writer is not available for sending commands.")
-            return False
-        try:
-            self._nikobus_writer.write(command.encode() + b'\r')
-            await self._nikobus_writer.drain()
-            return True
-        except (asyncio.TimeoutError, OSError) as err:
-            _LOGGER.error(f"Error sending command '{command}': {err}")
-            return False
-        except Exception as e:
-            _LOGGER.exception(f"Unhandled exception while sending command '{command}': {e}")
-            return False
-
-    async def close(self):
-        """Close the connection to the Nikobus system."""
-        if self._nikobus_writer:
-            self._nikobus_writer.close()
-            await self._nikobus_writer.wait_closed()
-            _LOGGER.info("Nikobus connection closed")
+            # readuntil(b'\r') captures the response until the Nikobus delimiter
+            data = await self._reader.readuntil(b'\r')
+            return data
+        except asyncio.LimitOverrunError:
+            # Buffer full, clear it to prevent hanging
+            await self._reader.read(1024)
+            raise NikobusConnectionError("Buffer overrun")
+        except (OSError, asyncio.IncompleteReadError) as err:
+            _LOGGER.error("Read failed: %s", err)
+            await self.disconnect()
+            raise NikobusConnectionError(f"Read error: {err}")
