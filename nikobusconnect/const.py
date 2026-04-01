@@ -1,35 +1,32 @@
-# nikobusconnect/const.py
-from dataclasses import dataclass, field
-from typing import List
+"""Nikobus protocol constants."""
 
-@dataclass(frozen=True)
-class ConnectionConfig:
-    baud_rate: int = 9600
-    # Mandatory commands to "wake up" the PC-Link interface
-    handshake_commands: List[str] = field(default_factory=lambda: [
-        "++++", "ATH0", "ATZ", "$10110000B8CF9D", 
-        "#L0", "#E0", "#L0", "#E1"
-    ])
-    expected_handshake_response: str = "$0511"
-    handshake_timeout: int = 60
+from typing import Final
 
-@dataclass(frozen=True)
-class MessageParserConfig:
-    button_command_prefix: str = "#N"
-    ignore_answer: str = "$0E"
-    feedback_refresh_command: List[str] = field(default_factory=lambda: ["$1012", "$1017"])
-    feedback_module_answer: str = "$1C"
-    command_processed: List[str] = field(default_factory=lambda: ["$0515", "$0516"])
-    controller_address: str = "$18"
-    manual_refresh_commands: List[str] = field(default_factory=lambda: ["$0512", "$0517"])
+# Handshake sequence to initialize the PC-Link interface
+COMMANDS_HANDSHAKE: Final[list[str]] = [
+    "++++",
+    "ATH0",
+    "ATZ",
+    "$10110000B8CF9D",
+    "#L0",
+    "#E0",
+    "#L0",
+    "#E1",
+]
+EXPECTED_HANDSHAKE_RESPONSE: Final[str] = "$0511"
+HANDSHAKE_TIMEOUT: Final[int] = 60
 
-@dataclass(frozen=True)
-class CommandExecutionConfig:
-    ack_wait_timeout: float = 2.0
-    answer_wait_timeout: float = 5.0
-    max_attempts: int = 3
+# Command execution timing
+COMMAND_EXECUTION_DELAY: Final[float] = 0.15
+COMMAND_ACK_WAIT_TIMEOUT: Final[int] = 15
+COMMAND_ANSWER_WAIT_TIMEOUT: Final[int] = 5
+COMMAND_POST_ACK_ANSWER_TIMEOUT: Final[float] = 1.5
+MAX_ATTEMPTS: Final[int] = 3
 
-# Global Instances for the library to import
-CONNECTION_CONFIG = ConnectionConfig()
-MESSAGE_PARSER_CONFIG = MessageParserConfig()
-COMMAND_EXECUTION_CONFIG = CommandExecutionConfig()
+# Message prefixes and markers
+BUTTON_COMMAND_PREFIX: Final[str] = "#N"
+COMMAND_PROCESSED: Final[tuple[str, str]] = ("$0515", "$0516")
+FEEDBACK_REFRESH_COMMAND: Final[tuple[str, str]] = ("$1012", "$1017")
+FEEDBACK_MODULE_ANSWER: Final[str] = "$1C"
+MANUAL_REFRESH_COMMAND: Final[tuple[str, str]] = ("$0512", "$0517")
+CONTROLLER_ADDRESS: Final[str] = "$18"
