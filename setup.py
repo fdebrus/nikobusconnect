@@ -7,7 +7,7 @@ with open('README.md', 'r') as fh:
 
 setup(
     name='nikobusconnect',
-    version='1.0.0',
+    version='2.0.0',
     author='Frederic Debrus',
     author_email='fdebrus@hotmail.com',
     description='A Python library for connecting to Nikobus systems',
@@ -27,5 +27,5 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
     ],
-    python_requires='>=3.7',
+    python_requires='>=3.10',
 )

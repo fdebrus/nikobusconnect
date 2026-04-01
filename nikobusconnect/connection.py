@@ -1,6 +1,4 @@
-"""
-Nikobus Connection Handler.
-"""
+"""Nikobus Connection Handler."""
 
 from __future__ import annotations
 
@@ -10,10 +8,11 @@ from typing import Optional
 
 import serial_asyncio
 
+from .const import COMMANDS_HANDSHAKE
+from .exceptions import NikobusConnectionError, NikobusSendError, NikobusReadError
+
 _LOGGER = logging.getLogger(__name__)
 
-class NikobusConnectionError(Exception):
-    """Base exception for Nikobus connection issues."""
 
 class NikobusConnect:
     """Manages the asynchronous connection (Serial or TCP) to the Nikobus PC-Link."""
@@ -32,17 +31,14 @@ class NikobusConnect:
         return self._is_connected
 
     async def connect(self) -> None:
-        """Establish the connection (TCP or Serial)."""
+        """Establish the connection."""
         _LOGGER.debug("Attempting to connect to Nikobus: %s", self._connection_string)
-        
+
         try:
-            # Logic to distinguish between TCP (host:port) and Serial (/dev/tty...)
             if ":" in self._connection_string and not self._connection_string.startswith("/"):
-                # TCP/IP Connection
                 host, port = self._connection_string.split(":", 1)
                 self._reader, self._writer = await asyncio.open_connection(host, int(port))
             else:
-                # Serial Connection
                 self._reader, self._writer = await serial_asyncio.open_serial_connection(
                     url=self._connection_string,
                     baudrate=9600,
@@ -53,14 +49,31 @@ class NikobusConnect:
                     rtscts=False,
                     dsrdtr=False
                 )
-            
+
             self._is_connected = True
             _LOGGER.info("Connected to Nikobus on %s", self._connection_string)
-            
+            try:
+                await self._handshake()
+            except Exception:
+                await self.disconnect()
+                raise
+
         except (OSError, asyncio.TimeoutError) as err:
             self._is_connected = False
             _LOGGER.error("Failed to connect to %s: %s", self._connection_string, err)
-            raise NikobusConnectionError(f"Connection failed: {err}")
+            raise NikobusConnectionError(f"Connection failed: {err}") from err
+
+    async def _handshake(self) -> None:
+        """Perform the full modem init + handshake sequence once after connecting."""
+        _LOGGER.debug("Starting Nikobus handshake...")
+        try:
+            for cmd in COMMANDS_HANDSHAKE:
+                await self.send(cmd)
+                await asyncio.sleep(0.2)
+            _LOGGER.info("Nikobus handshake completed successfully.")
+        except Exception as err:
+            _LOGGER.error("Handshake failed: %s", err)
+            raise NikobusConnectionError(f"Handshake failed: {err}") from err
 
     async def disconnect(self) -> None:
         """Close the connection and cleanup resources."""
@@ -70,11 +83,24 @@ class NikobusConnect:
                 await self._writer.wait_closed()
             except Exception as err:
                 _LOGGER.debug("Error during close: %s", err)
-        
+
         self._reader = None
         self._writer = None
         self._is_connected = False
         _LOGGER.info("Nikobus connection closed.")
+
+    async def ping(self) -> bool:
+        """Verify the PC-Link is responsive by sending an #E1 command."""
+        if not self._is_connected:
+            await self.connect()
+
+        try:
+            await self.send("#E1")
+            _LOGGER.debug("Nikobus ping (#E1) successful.")
+            return True
+        except Exception as err:
+            _LOGGER.error("Nikobus ping failed: %s", err)
+            raise NikobusConnectionError(f"Hardware not responding: {err}") from err
 
     async def send(self, command: str) -> None:
         """Send a command string to the bus with thread-safe locking."""
@@ -83,16 +109,14 @@ class NikobusConnect:
 
         async with self._lock:
             try:
-                # Nikobus expects CR as delimiter.
                 payload = command.strip() + "\r"
                 data = payload.encode("ascii")
-                
                 self._writer.write(data)
                 await self._writer.drain()
             except (OSError, asyncio.TimeoutError) as err:
                 _LOGGER.error("Write failed: %s", err)
                 await self.disconnect()
-                raise NikobusConnectionError(f"Write error: {err}")
+                raise NikobusSendError(f"Write error: {err}") from err
 
     async def read(self) -> bytes:
         """Read a single frame (CR-terminated) from the bus."""
@@ -100,14 +124,13 @@ class NikobusConnect:
             raise NikobusConnectionError("Cannot read: Not connected.")
 
         try:
-            # readuntil(b'\r') captures the response until the Nikobus delimiter
             data = await self._reader.readuntil(b'\r')
             return data
         except asyncio.LimitOverrunError:
-            # Buffer full, clear it to prevent hanging
-            await self._reader.read(1024)
-            raise NikobusConnectionError("Buffer overrun")
+            _LOGGER.error("Read buffer overrun — disconnecting")
+            await self.disconnect()
+            raise NikobusReadError("Buffer overrun")
         except (OSError, asyncio.IncompleteReadError) as err:
             _LOGGER.error("Read failed: %s", err)
             await self.disconnect()
-            raise NikobusConnectionError(f"Read error: {err}")
+            raise NikobusReadError(f"Read error: {err}") from err
